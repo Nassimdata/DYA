@@ -233,16 +233,30 @@ def get_filtered_count():
     var_str = ', '.join(f"'{v}'" for v in var_list)
     brand_str = ', '.join(f"'{b}'" for b in brand)
 
-    query = f"""
-    SELECT yougovid, date, variable, value, brand_name
-    FROM converged-havas-de.yougov_bi_fr.bi_response 
-    WHERE yougovid IN ({ids_str})
-      AND brand_name IN ({brand_str})
-      AND variable IN ({var_str})
+# 🔥 CORRECTION : Diviser en chunks
+    all_dfs = []
+    for i in range(0, len(panelist_ids), CHUNK_SIZE):
+        chunk = panelist_ids[i:i + CHUNK_SIZE]
+        ids_str = ', '.join(f"'{x}'" for x in chunk)
+    
+        query = f"""
+        SELECT yougovid, date, variable, value, brand_name
+        FROM converged-havas-de.yougov_bi_fr.bi_response 
+        WHERE yougovid IN ({ids_str})
+        AND brand_name IN ({brand_str})
+        AND variable IN ({var_str})
     """
-    df = run_query(query)
+        df_chunk = run_query(query)
+        if not df_chunk.empty:
+            all_dfs.append(df_chunk)
+
+    if not all_dfs:
+        return jsonify({'avg_respondents': 0, 'min_respondents': 0})
+
+    df = pd.concat(all_dfs, ignore_index=True)
+
     if df.empty:
-        return jsonify({'average_by_brand': {}, 'min_respondents': 0})
+        return jsonify({'avg_respondents': 0, 'min_respondents': 0})
     
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     df['positive'] = df['value'].apply(lambda x: 1 if str(x) == '1' else 0)
@@ -311,24 +325,38 @@ def get_graph_data(client_val, audiences, brands, selected_variable, start_date,
     if not panelists:
         return None, None, None, None, None, None
 
-    p_ids_str = ', '.join(f"'{x}'" for x in panelists)
+    # 🔥 CORRECTION : Diviser en chunks
     var_str = ', '.join(f"'{v}'" for v in var_list)
     brand_str = ', '.join(f"'{b}'" for b in brands)
-    query = f"""
-    SELECT yougovid, date, variable, value, brand_name
-    FROM converged-havas-de.yougov_bi_fr.bi_response 
-    WHERE yougovid IN ({p_ids_str})
-      AND brand_name IN ({brand_str})
-      AND variable IN ({var_str})
-    """
-    df = run_query(query)
+
+    all_dfs = []
+    for i in range(0, len(panelists), CHUNK_SIZE):
+        chunk = panelists[i:i + CHUNK_SIZE]
+        p_ids_str = ', '.join(f"'{x}'" for x in chunk)
+        
+        query = f"""
+        SELECT yougovid, date, variable, value, brand_name
+        FROM converged-havas-de.yougov_bi_fr.bi_response 
+        WHERE yougovid IN ({p_ids_str})
+        AND brand_name IN ({brand_str})
+        AND variable IN ({var_str})
+        """
+        df_chunk = run_query(query)
+        if not df_chunk.empty:
+            all_dfs.append(df_chunk)
+
+    if not all_dfs:
+        return None, None, None, None, None, None, None
+
+    df = pd.concat(all_dfs, ignore_index=True)
+
     if df.empty:
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, None
 
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
     if df.empty:
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, None
 
     df['positive'] = df['value'].apply(lambda x: 1 if str(x) == '1' else 0)
     
@@ -586,16 +614,28 @@ def purchase_funnel_analysis (client_val, audiences, brands, start_date, end_dat
         if not panelists:
             continue
 
-        p_ids_str = ', '.join(f"'{p}'" for p in panelists)
+                # 🔥 CORRECTION : Diviser en chunks
+        all_dfs = []
+        for i in range(0, len(panelists), CHUNK_SIZE):
+            chunk = panelists[i:i + CHUNK_SIZE]
+            p_ids_str = ', '.join(f"'{p}'" for p in chunk)
 
-        query = f"""
-        SELECT yougovid, date, brand_name, variable, value
-        FROM converged-havas-de.yougov_bi_fr.bi_response 
-        WHERE yougovid IN ({p_ids_str})
-          AND brand_name IN ({brand_str})
-          AND variable IN ({var_str})
-        """
-        df = run_query(query)
+            query = f"""
+            SELECT yougovid, date, brand_name, variable, value
+            FROM converged-havas-de.yougov_bi_fr.bi_response 
+            WHERE yougovid IN ({p_ids_str})
+            AND brand_name IN ({brand_str})
+            AND variable IN ({var_str})
+            """
+            df_chunk = run_query(query)
+            if not df_chunk.empty:
+                all_dfs.append(df_chunk)
+
+        if not all_dfs:
+            continue
+
+        df = pd.concat(all_dfs, ignore_index=True)
+
         if df.empty:
             continue
 
@@ -725,16 +765,32 @@ def correlation_analysis (client_val, audiences, brands, start_date, end_date, g
     if not all_fine_variables:
         return ({'indicators': [], 'corr_matrix': []})
 
-    p_ids_str = ', '.join(f"'{x}'" for x in panelists)
-    query = f"""
-    SELECT yougovid, date, variable, value, brand_name
-    FROM converged-havas-de.yougov_bi_fr.bi_response 
-    WHERE yougovid IN ({p_ids_str})
-      AND brand_name IN ({', '.join(f"'{b}'" for b in brands)})
-      AND variable IN ({', '.join(f"'{v}'" for v in all_fine_variables)})
-      AND date >= '{start_date}' AND date <= '{end_date}'
-    """
-    df = run_query(query)
+        # 🔥 CORRECTION : Diviser en chunks
+    brand_str = ', '.join(f"'{b}'" for b in brands)
+    var_str = ', '.join(f"'{v}'" for v in all_fine_variables)
+
+    all_dfs = []
+    for i in range(0, len(panelists), CHUNK_SIZE):
+        chunk = panelists[i:i + CHUNK_SIZE]
+        p_ids_str = ', '.join(f"'{x}'" for x in chunk)
+        
+        query = f"""
+        SELECT yougovid, date, variable, value, brand_name
+        FROM converged-havas-de.yougov_bi_fr.bi_response 
+        WHERE yougovid IN ({p_ids_str})
+        AND brand_name IN ({brand_str})
+        AND variable IN ({var_str})
+        AND date >= '{start_date}' AND date <= '{end_date}'
+        """
+        df_chunk = run_query(query)
+        if not df_chunk.empty:
+            all_dfs.append(df_chunk)
+
+    if not all_dfs:
+        return {'indicators': [], 'corr_matrix': [], 'means': {}, 'pivot': []}
+
+    df = pd.concat(all_dfs, ignore_index=True)
+
     if df.empty:
         return {'indicators': [], 'corr_matrix': [], 'means': {}, 'pivot': []}
     
@@ -815,23 +871,36 @@ def sem_analysis (client_val, audiences, brands, variables, start_date, end_date
             log("[DEBUG SEM] Aucun panelist trouvé")
             return ({'error': 'Aucun panelist trouvé.'}), 400
 
-        p_ids_str = ', '.join(f"'{x}'" for x in panelists)
-
         all_vars = []
         for v in variables:
             all_vars += INDICATORS.get(v, [])
         var_str = ', '.join(f"'{v}'" for v in all_vars)
         brand_str = ', '.join(f"'{b}'" for b in brands)
 
-        query = f"""
-        SELECT yougovid, date, variable, value, brand_name
-        FROM converged-havas-de.yougov_bi_fr.bi_response 
-        WHERE yougovid IN ({p_ids_str})
-          AND brand_name IN ({brand_str})
-          AND variable IN ({var_str})
-          AND date >= '{start_date}' AND date <= '{end_date}'
-        """
-        df = run_query(query)
+        # 🔥 CORRECTION : Diviser en chunks
+        all_dfs = []
+        for i in range(0, len(panelists), CHUNK_SIZE):
+            chunk = panelists[i:i + CHUNK_SIZE]
+            p_ids_str = ', '.join(f"'{x}'" for x in chunk)
+
+            query = f"""
+            SELECT yougovid, date, variable, value, brand_name
+            FROM converged-havas-de.yougov_bi_fr.bi_response 
+            WHERE yougovid IN ({p_ids_str})
+              AND brand_name IN ({brand_str})
+              AND variable IN ({var_str})
+              AND date >= '{start_date}' AND date <= '{end_date}'
+            """
+            df_chunk = run_query(query)
+            if not df_chunk.empty:
+                all_dfs.append(df_chunk)
+        
+        if not all_dfs:
+            log("[DEBUG SEM] DataFrame vide après requête BQ")
+            return ({'error': 'Pas de données.'}), 400
+        
+        df = pd.concat(all_dfs, ignore_index=True)
+        
         if df.empty:
             log("[DEBUG SEM] DataFrame vide après requête BQ")
             return ({'error': 'Pas de données.'}), 400
