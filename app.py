@@ -11,7 +11,7 @@ import logging
 from io import BytesIO
 from google.oauth2.credentials import Credentials
 
-
+CHUNK_SIZE = 8000 
 load_dotenv()
 
 
@@ -157,13 +157,26 @@ def get_brands_variables():
     panelist_ids = data.get('panelist_ids', [])
     if not panelist_ids:
         return jsonify({'brands': [], 'variables': []})
-    ids_str = ', '.join(f"'{x}'" for x in panelist_ids)
-    query = f"""
-    SELECT DISTINCT brand_name, variable 
-    FROM converged-havas-de.yougov_bi_fr.bi_response 
-    WHERE yougovid IN ({ids_str})
-    """
-    df = run_query(query)
+    
+    # 🔥 CORRECTION : Diviser en chunks
+    all_dfs = []
+    for i in range(0, len(panelist_ids), CHUNK_SIZE):
+        chunk = panelist_ids[i:i + CHUNK_SIZE]
+        ids_str = ', '.join(f"'{x}'" for x in chunk)
+        query = f"""
+        SELECT DISTINCT brand_name, variable 
+        FROM converged-havas-de.yougov_bi_fr.bi_response 
+        WHERE yougovid IN ({ids_str})
+        """
+        df_chunk = run_query(query)
+        if not df_chunk.empty:
+            all_dfs.append(df_chunk)
+    
+    if not all_dfs:
+        return jsonify({'brands': [], 'variables': []})
+    
+    df = pd.concat(all_dfs, ignore_index=True).drop_duplicates()
+    
     return jsonify({
         'brands': sorted(df['brand_name'].dropna().unique().tolist()),
         'variables': sorted(df['variable'].dropna().unique().tolist())
