@@ -25,15 +25,15 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: docker.io/
-          username: ${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_08A3909449D94668AD48B60D87C50BDC }}
-          password: ${{ secrets.AZUREAPPSERVICE_CONTAINERPASSWORD_BF04C09EAD0145B6BD9ADB552710535F }}
+          username: ${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_E07C0F0081324D7C899382B9A8C954B8 }}
+          password: ${{ secrets.AZUREAPPSERVICE_CONTAINERPASSWORD_93CC346E7BFE45B68E98148B0991A368 }}
 
       - name: Build and push container image to registry
         uses: docker/build-push-action@v3
         with:
           context: .
           push: true
-          tags: docker.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_08A3909449D94668AD48B60D87C50BDC }}/nassim517/dya:${{ github.sha }}
+          tags: docker.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_E07C0F0081324D7C899382B9A8C954B8 }}/nassim517/dya:${{ github.sha }}
           file: ./Dockerfile
 
   deploy:
@@ -49,5 +49,5 @@ jobs:
         with:
           app-name: 'DYA'
           slot-name: 'Production'
-          images: 'docker.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_08A3909449D94668AD48B60D87C50BDC }}/nassim517/dya:${{ github.sha }}'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E28927FF9C7E4CD7B89351681DD1AA65 }}
+          images: 'docker.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_E07C0F0081324D7C899382B9A8C954B8 }}/nassim517/dya:${{ github.sha }}'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_82DE876BD53E47B68B2AEF936C9762A3 }}
