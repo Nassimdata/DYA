@@ -1,35 +1,49 @@
-# Utilise une image officielle Python 3.12 slim (base Debian bullseye)
-FROM python:3.12-slim
+# Image Python 3.11 (meilleure compatibilité avec vos packages)
+FROM python:3.11-slim
 
-# Installer les dépendances système nécessaires pour compiler (gcc, build-essential, python-dev, etc)
+# Installer les dépendances système
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     python3-dev \
-    cython3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Créer un dossier pour l'app
+# Dossier de travail
 WORKDIR /app
 
-# Copier les fichiers requirements et l'application dans l'image
+# Copier requirements
 COPY requirements.txt .
 
-# Mettre à jour pip, setuptools et wheel (meilleure gestion des builds)
+# Mettre à jour pip, setuptools, wheel
 RUN pip install --upgrade pip setuptools wheel
 
-# Installer d'abord Cython explicitement pour le build de portmin
+# Installer Cython d'abord (nécessaire pour certains packages)
 RUN pip install Cython
 
-# Installer les autres dépendances listées dans requirements.txt
-RUN pip install -r requirements.txt
+# Installer les dépendances
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copier tout le code source dans /app
+# Copier le code
 COPY . .
 
-# Exposer le port utilisé par Flask (par défaut 8000 ou 5000)
+# Variable d'environnement pour Azure (important!)
+ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
+
+# Exposer le port
 EXPOSE 8000
 
-# Définir la commande de démarrage, par exemple avec gunicorn (adapter selon ton app)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "120", "app:app"]
+# Healthcheck pour Azure
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/', timeout=5)" || exit 1
 
+# Commande de démarrage avec gunicorn
+# Adaptez "app:app" selon votre fichier (si c'est main.py:app alors mettez "main:app")
+CMD gunicorn --bind 0.0.0.0:$PORT \
+    --workers 2 \
+    --threads 4 \
+    --timeout 300 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info \
+    app:app
